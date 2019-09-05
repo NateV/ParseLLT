@@ -1,4 +1,3 @@
-
 import Data.Time
 import Text.Regex.PCRE
 import Data.Text
@@ -6,6 +5,11 @@ import Data.Bits ((.|.))
 import Data.Array
 import Text.Read (readMaybe)
 import Control.Applicative 
+import Data.Csv
+import GHC.Generics (Generic)
+import qualified Data.ByteString.Lazy as BL
+import Data.ByteString.UTF8 as BLU
+import qualified Data.Vector as V
 
 example = "P agrees to pay $60 on 02/02/2000. P will vacate the premises on 01/01/2000. P will then go on vacation."
 
@@ -57,7 +61,23 @@ extractDates l = fmap (parseTimeM True defaultTimeLocale "%m/%d/%Y") (extractMat
 sumPayments :: [Money] -> Money
 sumPayments ps = Prelude.foldr (liftA2 (+)) (Just 0) ps
 
+data JBARow = JBARow {
+                        id :: !String
+                      , jba_substance_additional :: !String
+                     }
+
+instance FromNamedRecord JBARow where
+    parseNamedRecord r = JBARow <$> r .: (BLU.fromString "id") <*> r .: (BLU.fromString "jba_substance_additional")
+
 main = do
     putStrLn $ show $ fmap tokenize (splitLines example)
+    putStrLn "Now opening csv"
+    csvData <- BL.readFile "/home/nvogel/Downloads/jbaAdditional.csv"
+    case decodeByName csvData of
+        Left err -> putStrLn err
+        Right (_, v) -> V.forM_ v $ \ p ->
+          putStrLn $ Main.id p ++ ": Total Payments: " ++ ((show . sumPayments . extractPayments . jba_substance_additional) p) 
+    putStrLn "Done" 
+    
 
 
