@@ -3,31 +3,43 @@ import Data.Time
 import Text.Regex.PCRE
 import Data.Text
 import Data.Bits ((.|.))
+import Data.Array
+import Text.Read (readMaybe)
 
 example = "P agrees to pay $60 on 2019-01-01. P will vacate the premises on 2019-02-02. P will then go on vacation."
 
 type Line = String
-type Money = Float
+type Money = Maybe Integer 
 data Token = GenericToken Line
-	   | VacateToken [Day] Line
-	   | PaymentToken [Money] Line
+   | VacateToken [Day] Line
+   | PaymentToken [Money] Line
 
 instance Show Token where 
-	show (GenericToken l) = "Generic:" ++ show l
-	show (VacateToken ds l) = "Vacate:" ++ show ds
-	show (PaymentToken ms l) = "Payment:" ++ show ms
+    show (GenericToken l) = "Generic:" ++ show l
+    show (VacateToken ds l) = "Vacate:" ++ show ds
+    show (PaymentToken ms l) = "Payment:" ++ show ms
 
 splitLines t = fmap unpack $ splitOn (pack ".") (pack t)
 
 tokenize :: Line -> Token
 tokenize l
-	| l =~ "pay" = PaymentToken (extractPayments l) l
-	| l =~ "vaca" = VacateToken [fromGregorian 2019 1 1] l
-	| otherwise = GenericToken l
+    | l =~ "pay" = PaymentToken (extractPayments l)  l
+    | l =~ "vaca" = VacateToken [fromGregorian 2019 1 1] l
+    | otherwise = GenericToken l
 
 main = do
     putStrLn $ show $ fmap tokenize (splitLines example)
 
+--regex options
+compilationOptions = defaultCompOpt .|. compCaseless
+
+caselessMoneyRegex :: Regex
+caselessMoneyRegex = makeRegexOpts compilationOptions defaultExecOpt "\\$[0-9]+(\\.[0-9]+)?"
 
 extractPayments :: Line -> [Money]
-extractPayments l = undefined 
+extractPayments l = fmap (readMaybe . removeDollarSign) (extractMatches matches) :: [Money]
+    where matches = matchAllText caselessMoneyRegex l
+
+removeDollarSign s = [ c | c <- s, not (c `elem` "$")]
+
+extractMatches matches = fmap (fst . Prelude.head . elems) matches 
