@@ -66,6 +66,8 @@ data JBARow = JBARow {
                       , jba_substance_additional :: !String
                      }
 
+
+
 instance FromNamedRecord JBARow where
     parseNamedRecord r = JBARow <$> r .: (BLU.fromString "id") <*> r .: (BLU.fromString "jba_substance_additional")
 
@@ -73,10 +75,11 @@ main = do
     putStrLn $ show $ fmap tokenize (splitLines example)
     putStrLn "Now opening csv"
     csvData <- BL.readFile "/home/nvogel/Downloads/jbaAdditional.csv"
-    case decodeByName csvData of
-        Left err -> putStrLn err
-        Right (_, v) -> V.forM_ v $ \ p ->
-          putStrLn $ Main.id p ++ ": Total Payments: " ++ ((show . sumPayments . extractPayments . jba_substance_additional) p) 
+    newDate <- case decodeByName csvData of
+        Left err -> IO err
+        Right (_, v) -> IO $ V.forM v $ \ p ->
+          toRecord ((sumPayments . extractPayments . jba_substance_additional) p)
+                   ((show . extractDates . jba_substance_additional) p)
     putStrLn "Done" 
     
 
