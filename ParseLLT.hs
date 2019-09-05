@@ -5,6 +5,7 @@ import Data.Text
 import Data.Bits ((.|.))
 import Data.Array
 import Text.Read (readMaybe)
+import Control.Applicative 
 
 example = "P agrees to pay $60 on 02/02/2000. P will vacate the premises on 01/01/2000. P will then go on vacation."
 
@@ -19,6 +20,9 @@ instance Show Token where
     show (VacateToken ds l) = "Vacate:" ++ show ds
     show (PaymentToken ms l) = "Payment:" ++ show ms
 
+type TokenAST = [Token]
+
+splitLines :: String -> [Line]
 splitLines t = fmap unpack $ splitOn (pack ".") (pack t)
 
 tokenize :: Line -> Token
@@ -32,7 +36,6 @@ compilationOptions = defaultCompOpt .|. compCaseless
 
 caselessMoneyRegex :: Regex
 caselessMoneyRegex = makeRegexOpts compilationOptions defaultExecOpt "\\$[0-9]+(\\.[0-9]+)?"
-
 
 caselessDayRegex :: Regex
 caselessDayRegex = makeRegexOpts compilationOptions defaultExecOpt "\\d{2}/\\d{2}/\\d{2,4}"
@@ -50,6 +53,9 @@ extractDates :: Line -> [Maybe Day]
 extractDates l = fmap (parseTimeM True defaultTimeLocale "%m/%d/%Y") (extractMatches matches) :: [Maybe Day]
     where matches = matchAllText caselessDayRegex l
 
+
+sumPayments :: [Money] -> Money
+sumPayments ps = Prelude.foldr (liftA2 (+)) (Just 0) ps
 
 main = do
     putStrLn $ show $ fmap tokenize (splitLines example)
