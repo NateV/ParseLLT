@@ -14,6 +14,7 @@ import qualified Data.ByteString.Lazy as BL
 import Data.ByteString.UTF8 as BLU
 import qualified Data.Vector as V
 import qualified Data.Foldable as Foldable
+import Data.List
 
 example = "P agrees to pay $60 on 02/02/2000. P will vacate the premises on 01/01/2000. P will then go on vacation."
 
@@ -77,25 +78,30 @@ data JBARow = JBARow {
 data JBARowOut = JBARowOut {
                           outputId :: !String
                         , money :: !Integer
+                        , dates :: !String
                         , full_text :: !String
                         } deriving (Show)
-
-
 
 instance FromNamedRecord JBARow where
     parseNamedRecord r = JBARow <$> r .: (BLU.fromString "id") <*> r .: (BLU.fromString "jba_substance_additional")
 
 instance ToNamedRecord JBARowOut where
-    toNamedRecord (JBARowOut i m j) = namedRecord [
+    toNamedRecord (JBARowOut i m d j) = namedRecord [
         BLU.fromString "outputId" .= i,
         BLU.fromString "money" .= m,
+        BLU.fromString "dates" .= d,
         BLU.fromString "full_text" .= j]
 
 instance DefaultOrdered JBARowOut where
     headerOrder _ = header [
         BLU.fromString "outputId",
         BLU.fromString "money",
+        BLU.fromString "dates",
         BLU.fromString "full_text"]
+
+maybeShowGregorian d = case d of
+    Nothing -> ""
+    Just d -> showGregorian d
 
 parseData :: BL.ByteString -> Either String (V.Vector JBARowOut)
 parseData csvData =
@@ -105,6 +111,7 @@ parseData csvData =
             JBARowOut
                 (Main.id p)
                 ((extractMoney . sumPayments . extractPayments . jba_substance_additional) p)
+                (Data.List.intercalate ", " $ fmap maybeShowGregorian $ extractDates (jba_substance_additional p))
                 (jba_substance_additional p)
             )
 
@@ -113,14 +120,6 @@ saveCSV parsedData =
     case parsedData of
         Left err -> putStrLn err
         Right (v) -> BL.writeFile "out.csv" $ encodeDefaultOrderedByName $ Foldable.toList v
-
-        -- Right (v) -> V.forM_ v $ \p ->
-        --     BL.appendFile "out.csv"
-        --        (encodeDefaultOrderedByName [p])
-
-
---          ( ((sumPayments . extractPayments . jba_substance_additional) p),
---                   ((extractDates . jba_substance_additional) p) ))
 
 main = do
     putStrLn $ show $ fmap tokenize (splitLines example)
